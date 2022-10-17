@@ -15,6 +15,10 @@ Abstract:
 #pragma warning(disable:28930) // Unused assignment of pointer, by design in samples
 #pragma warning(disable:28931) // Unused assignment of variable, by design in samples
 
+//#include"dhcpPacket.h"
+
+
+
 // TODO: Customize these to hint at your component for memory leak tracking.
 // These should be treated like a pooltag.
 #define FILTER_REQUEST_ID          'RTLF'
@@ -280,7 +284,7 @@ typedef struct _MS_FILTER
     FILTER_LOCK                     RcvLock;
     QUEUE_HEADER                    SendNBLQueue;
     QUEUE_HEADER                    RcvNBLQueue;
-
+    NDIS_HANDLE                     UserSendNetPacketPool;
 
     NDIS_STRING                     FilterName;
     ULONG                           CallsRestart;
@@ -320,6 +324,8 @@ typedef struct _FL_NDIS_FILTER_LIST
 //
 typedef struct _NDIS_OID_REQUEST *FILTER_REQUEST_CONTEXT,**PFILTER_REQUEST_CONTEXT;
 
+
+extern void sendNDISPacket(PMS_FILTER pFilter);
 
 //
 // function prototypes

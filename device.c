@@ -18,7 +18,7 @@ ndisFilterRegisterDevice(
     NDIS_STATUS            Status = NDIS_STATUS_SUCCESS;
     UNICODE_STRING         DeviceName;
     UNICODE_STRING         DeviceLinkUnicodeString;
-    PDRIVER_DISPATCH       DispatchTable[IRP_MJ_MAXIMUM_FUNCTION+1];
+    PDRIVER_DISPATCH       DispatchTable[IRP_MJ_MAXIMUM_FUNCTION+1];//dispatch function || major function
     NDIS_DEVICE_OBJECT_ATTRIBUTES   DeviceAttribute;
     PFILTER_DEVICE_EXTENSION        FilterDeviceExtension;
     PDRIVER_OBJECT                  DriverObject;
@@ -245,7 +245,7 @@ ndisFilterDeviceIoControl(
     Irp->IoStatus.Status = Status;
     Irp->IoStatus.Information = InfoLength;
 
-    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);//结束IRP 不向下传递
 
     return Status;
             

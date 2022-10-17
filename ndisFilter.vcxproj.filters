@@ -36,6 +36,9 @@
     <ClInclude Include="flt_dbg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="dhcpPacket.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="filter.c">
@@ -48,6 +51,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="precomp.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="dhcpPacket.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

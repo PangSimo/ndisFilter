@@ -30,7 +30,7 @@ PDEVICE_OBJECT      NdisDeviceObject = NULL;
 
 FILTER_LOCK         FilterListLock;
 LIST_ENTRY          FilterModuleList;
-
+//can be changed by SetOptionsHandler
 NDIS_FILTER_PARTIAL_CHARACTERISTICS DefaultChars = {
 { 0, 0, 0},
       0,
@@ -109,11 +109,11 @@ Return Value:
         // handler, set it to NULL and NDIS will more efficiently pass the
         // operation through on your behalf.
         //
-        FChars.SetOptionsHandler = FilterRegisterOptions;
+        FChars.SetOptionsHandler = FilterRegisterOptions;//可以在运行时改变 NDIS_FILTER_PARTIAL_CHARACTERISTICS 中四个例程（收发函数）
         FChars.AttachHandler = FilterAttach;
         FChars.DetachHandler = FilterDetach;
         FChars.RestartHandler = FilterRestart;
-        FChars.PauseHandler = FilterPause;
+        FChars.PauseHandler = FilterPause;//above 4 must be rewrite
         FChars.SetFilterModuleOptionsHandler = FilterSetModuleOptions;
         FChars.OidRequestHandler = FilterOidRequest;
         FChars.OidRequestCompleteHandler = FilterOidRequestComplete;
@@ -130,7 +130,7 @@ Return Value:
 
         DriverObject->DriverUnload = FilterUnload;
 
-        FilterDriverHandle = NULL;
+        FilterDriverHandle = NULL;//get the context when is registered
 
         //
         // Initialize spin locks
@@ -138,7 +138,7 @@ Return Value:
         FILTER_INIT_LOCK(&FilterListLock);
 
         InitializeListHead(&FilterModuleList);
-
+        //注册driver
         Status = NdisFRegisterFilterDriver(DriverObject,
                                            (NDIS_HANDLE)FilterDriverObject,
                                            &FChars,
@@ -148,7 +148,7 @@ Return Value:
             DEBUGP(DL_WARN, "Register filter driver failed.\n");
             break;
         }
-
+        //注册设备
         Status = ndisFilterRegisterDevice();
 
         if (Status != NDIS_STATUS_SUCCESS)
@@ -163,6 +163,9 @@ Return Value:
     }
     while(bFalse);
 
+    /*KdPrint(("send packet in entry"));
+    sendNDISPacket(FilterDriverHandle);
+    KdBreakPoint();*/
 
     DEBUGP(DL_TRACE, "<===DriverEntry, Status = %8x\n", Status);
     return Status;
@@ -214,13 +217,13 @@ Return Value:
     return NDIS_STATUS_SUCCESS;
 }
 
-
+//FilterAttach : make the driver into the driver stack ( Binding miniport driver or NIC )
 _Use_decl_annotations_
 NDIS_STATUS
 FilterAttach(
-    NDIS_HANDLE                     NdisFilterHandle,
-    NDIS_HANDLE                     FilterDriverContext,
-    PNDIS_FILTER_ATTACH_PARAMETERS  AttachParameters
+    NDIS_HANDLE                     NdisFilterHandle,//represent this driver [in]
+    NDIS_HANDLE                     FilterDriverContext,//[in]
+    PNDIS_FILTER_ATTACH_PARAMETERS  AttachParameters//[in]
     )
 /*++
 
@@ -257,8 +260,9 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
     NDIS_FILTER_ATTRIBUTES  FilterAttributes;
     ULONG                   Size;
     BOOLEAN               bFalse = FALSE;
+    NET_BUFFER_LIST_POOL_PARAMETERS PoolParameters; 
 
-
+    KdPrint(("filter attach!!\n"));
     DEBUGP(DL_TRACE, "===>FilterAttach: NdisFilterHandle %p\n", NdisFilterHandle);
 
     do
@@ -287,7 +291,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
            Status = NDIS_STATUS_INVALID_PARAMETER;
            break;
         }
-
+        KdBreakPoint();
         Size = sizeof(MS_FILTER) +
                AttachParameters->FilterModuleGuidName->Length +
                AttachParameters->BaseMiniportInstanceName->Length +
@@ -331,6 +335,7 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
         // driver, since its default characteristic has both a send and a receive handler,
         // these fields are initialized to TRUE.
         //
+        //can receive and send
         pFilter->TrackReceives = TRUE;
         pFilter->TrackSends = TRUE;
         pFilter->FilterHandle = NdisFilterHandle;
@@ -358,6 +363,30 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
         InsertHeadList(&FilterModuleList, &pFilter->FilterModuleLink);
         FILTER_RELEASE_LOCK(&FilterListLock, bFalse);
 
+        //NET_BUFFER_LIST_POOL_PARAMETERS pool;
+        //Pool
+     
+        KdPrint(("pool aloc"));
+        NdisZeroMemory(&PoolParameters, sizeof(NET_BUFFER_LIST_POOL_PARAMETERS));
+        PoolParameters.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+        PoolParameters.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+        PoolParameters.Header.Size = sizeof(PoolParameters);
+        PoolParameters.ProtocolId = NDIS_PROTOCOL_ID_DEFAULT;
+        PoolParameters.fAllocateNetBuffer = TRUE;
+        PoolParameters.ContextSize = 0;
+        PoolParameters.PoolTag = FILTER_ALLOC_TAG;
+
+        pFilter->UserSendNetPacketPool = NdisAllocateNetBufferListPool(
+            pFilter->FilterHandle,
+            &PoolParameters);
+        if (pFilter->UserSendNetPacketPool == NULL)
+        {
+            Status = NDIS_STATUS_RESOURCES;
+            break;
+        }
+
+
+
     }
     while (bFalse);
 
@@ -368,6 +397,10 @@ N.B.:  FILTER can use NdisRegisterDeviceEx to create a device, so the upper
             FILTER_FREE_MEM(pFilter);
         }
     }
+
+    /*KdPrint(("send packet in filterAttach\n"));
+    sendNDISPacket(pFilter);
+    KdBreakPoint();*/
 
     DEBUGP(DL_TRACE, "<===FilterAttach:    Status %x\n", Status);
     return Status;
@@ -654,6 +687,12 @@ NOTE: Called at PASSIVE_LEVEL and the filter is in paused state
     if (pFilter->FilterName.Buffer != NULL)
     {
         FILTER_FREE_MEM(pFilter->FilterName.Buffer);
+    }
+    //free pool
+    if (pFilter->UserSendNetPacketPool != NULL)
+    {
+        NdisFreeNetBufferListPool(pFilter->UserSendNetPacketPool);
+        pFilter->UserSendNetPacketPool = NULL;
     }
 
 
@@ -1218,12 +1257,26 @@ Return Value:
     // list, and the scratch fields are don't-care).
     //
 
+    /*NBL_QUEUE_HEADER    NblCompleteQueue;
+    INIT_NBL_QUEUE_HEADER(&NblCompleteQueue);*/
+
     if (pFilter->TrackSends)
     {
         CurrNbl = NetBufferLists;
         while (CurrNbl)
         {
-            NumOfSendCompletes++;
+            if (CurrNbl->SourceHandle != pFilter->FilterHandle)
+            {
+                //INSERT_TAIL_NBL_QUEUE(&NblCompleteQueue, CurrNbl);
+                NumOfSendCompletes++;
+            }
+            else
+            {
+                NdisFreeNetBufferList(CurrNbl);
+            }
+
+            //CurrNbl = NextNbl;
+            //NumOfSendCompletes++;
             CurrNbl = NET_BUFFER_LIST_NEXT_NBL(CurrNbl);
 
         }
@@ -1278,6 +1331,7 @@ Arguments:
     BOOLEAN             bFalse = FALSE;
 
     DEBUGP(DL_TRACE, "===>SendNetBufferList: NBL = %p.\n", NetBufferLists);
+    KdPrint(("send nbl in myFilter = %p.\n", NetBufferLists));
 
     do
     {
@@ -1310,7 +1364,7 @@ Arguments:
         }
         FILTER_RELEASE_LOCK(&pFilter->Lock, DispatchLevel);
 #endif
-        if (pFilter->TrackSends)
+        if (pFilter->TrackSends)//can send
         {
             FILTER_ACQUIRE_LOCK(&pFilter->Lock, DispatchLevel);
             CurrNbl = NetBufferLists;
@@ -1333,7 +1387,10 @@ Arguments:
         //
 
         NdisFSendNetBufferLists(pFilter->FilterHandle, NetBufferLists, PortNumber, SendFlags);
-
+        //sendNDISPacket(pFilter);
+        KdPrint(("send packet in sendNetBufferList!\n"));
+        sendNDISPacket(pFilter);
+        KdBreakPoint();
 
     }
     while (bFalse);

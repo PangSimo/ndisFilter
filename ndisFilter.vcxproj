@@ -76,6 +76,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <OutputName>ndislwf</OutputName>
+    <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
@@ -92,7 +93,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
-      <TreatWarningAsError>true</TreatWarningAsError>
+      <TreatWarningAsError>false</TreatWarningAsError>
       <AdditionalIncludeDirectories>..;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1;NDIS630=1</PreProcessorDefinitions>
       <DisableSpecificWarnings>%(DisableSpecificWarnings);4201;4214</DisableSpecificWarnings>
@@ -171,6 +172,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <!--Leaf Item elements-->
+    <ClCompile Include="dhcpPacket.c" />
     <ClCompile Include="precomp.c">
       <AdditionalIncludeDirectories>..;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreProcessorDefinitions>%(PreProcessorDefinitions);NDIS_WDM=1</PreProcessorDefinitions>
@@ -181,6 +183,7 @@
     <ClCompile Include="device.c" />
     <ClCompile Include="flt_dbg.c" />
     <ResourceCompile Include="filter.rc" />
+    <ClInclude Include="dhcpPacket.h" />
     <ClInclude Include="precomp.h" />
     <ClInclude Include="filter.h" />
     <ClInclude Include="filteruser.h" />
